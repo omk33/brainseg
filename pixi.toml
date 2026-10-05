@@ -1,0 +1,35 @@
+[workspace]
+channels = ["conda-forge"]
+name = "brainseg"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.14.*"
+nibabel = ">=5.4.2,<6"
+numpy = ">=2.5.2,<3"
+scipy = ">=1.18.0,<2"
+scikit-learn = ">=1.9.0,<2"
+matplotlib = ">=3.11.1,<4"
+nbformat = ">=5.11.1,<6"
+plotly = ">=6.9.0,<7"
+mlflow = ">=3.15.2,<4"
+ipykernel = ">=7.3.0,<8"
+
+# monai moved to pypi so it does not drag in the conda-forge CPU pytorch.
+# torch comes from the cu130 index to match tensorrt's cu13 build and the CUDA 13.3 driver.
+[pypi-dependencies]
+torch = { version = ">=2.10.0", index = "https://download.pytorch.org/whl/cu130" }
+monai = ">=1.5.2,<2"
+tensorrt = ">=11.2.1.2, <12"
+onnx = ">=1.22.0"
+polygraphy = ">=0.53.4"
+onnx-graphsurgeon = ">=0.6.1"
+onnxruntime = ">=1.29.0"
+onnxscript = "*"
+
+# mlflow 3.15 deprecated the ./mlruns file store; opt out to keep existing local runs
+[activation.env]
+MLFLOW_ALLOW_FILE_STORE = "true"

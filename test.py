@@ -65,7 +65,7 @@ def main():
     dice_WT = DiceMetric(include_background=False, reduction="mean_batch")
     dice_TC = DiceMetric(include_background=False, reduction="mean_batch")
     dice_ET = DiceMetric(include_background=False, reduction="mean_batch")
-    
+
     hd95_WT = HausdorffDistanceMetric(include_background=False, percentile=95, reduction="mean_batch")
     hd95_TC = HausdorffDistanceMetric(include_background=False, percentile=95, reduction="mean_batch")
     hd95_ET = HausdorffDistanceMetric(include_background=False, percentile=95, reduction="mean_batch")
@@ -84,33 +84,33 @@ def main():
             # whole tumor (WT) = ED + NCR + ET
             wt_pred = (pred_mask[:, 1:, ...].sum(dim=1, keepdim=True) > 0).float()
             wt_true = (true_mask[:, 1:, ...].sum(dim=1, keepdim=True) > 0).float()
-            
+
             # tumor core (TC) = NCR + ET
             tc_pred = ((pred_mask[:, 1, ...] + pred_mask[:, 3, ...]) > 0).unsqueeze(1).float()
             tc_true = ((true_mask[:, 1, ...] + true_mask[:, 3, ...]) > 0).unsqueeze(1).float()
-            
+
             # enhancing tumor (ET) = ET only
             et_pred = pred_mask[:, 3:4, ...]
             et_true = true_mask[:, 3:4, ...]
-            
+
             # update metrics
             dice_WT(wt_pred, wt_true)
             dice_TC(tc_pred, tc_true)
             dice_ET(et_pred, et_true)
-            
+
             hd95_WT(wt_pred, wt_true)
             hd95_TC(tc_pred, tc_true)
             hd95_ET(et_pred, et_true)
-    
+
     # aggregate metrics
     dice_wt = dice_WT.aggregate().item()
     dice_tc = dice_TC.aggregate().item()
     dice_et = dice_ET.aggregate().item()
-    
+
     hd95_wt = hd95_WT.aggregate().item()
     hd95_tc = hd95_TC.aggregate().item()
     hd95_et = hd95_ET.aggregate().item()
-    
+
     mean_dice = (dice_wt + dice_tc + dice_et) / 3
     mean_hd95 = (hd95_wt + hd95_tc + hd95_et) / 3
 
@@ -135,6 +135,6 @@ def main():
     mlflow.end_run()
 
     print("done")
-    
+
 if __name__ == "__main__":
     main()

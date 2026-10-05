@@ -13,3 +13,9 @@ data/
 mlruns/
 weights/
 *.pt
+onnx/
+*.bak
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

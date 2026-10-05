@@ -73,22 +73,22 @@ class CrossAttention3D(nn.Module):
         self.norm_v = nn.LayerNorm(latent_channels)
 
         self.out_proj = nn.Conv3d(latent_channels, in_channels_dec, kernel_size=1, bias=False)
-        
+
         self.proj_dropout = nn.Dropout3d(dropout_probability) if dropout else nn.Identity()
         self.att_dropout = nn.Dropout(dropout_probability) if dropout else nn.Identity()
-    
+
     # flatten spatial dimensions, (b, c, d, h, w) to (b, d * h * w, c)
     def _to_tokens(self, x):
         b, c, d, h, w = x.shape
         tokens = x.view(b, c, d * h * w).transpose(1, 2)
         return tokens, (b, c, d, h, w)
-    
+
     # reconstruct spatial dimensions, (b, d * h * w, lc) to (b, lc, d, h, w)
     def _from_tokens(self, x, shape):
         b, _, d, h, w = shape
         rec_spatial = x.transpose(1, 2).view(b, self.lc, d, h, w)
         return rec_spatial
-    
+
     # split attention heads, (b, d * h * w, n_h, n_lc_per_h) to (b, n_h, d * h * w, n_lc_per_h)
     def _split_heads(self, x):
         b, dhw, _ = x.shape
@@ -116,7 +116,7 @@ class CrossAttention3D(nn.Module):
         att_raw = (q_h @ k_h.transpose(-2, -1)) / (self.n_lc_per_h ** 0.5)
         att_scores = self.att_dropout(att_raw.softmax(dim=-1))
         att_ctx = att_scores @ v_h # (b, n_h, d * h * w, n_lc_per_h)
-        
+
         # merge attention heads
         att_ctx = att_ctx.transpose(1, 2).contiguous().view(q_t.shape[0], q_t.shape[1], self.lc) # (b, d * h * w, lc)
 
@@ -136,17 +136,8 @@ class UpBlock3D_AG(nn.Module):
 
     def forward(self, x, skip=None):
         x = self.up(x)
-
-        diffX = skip.size(4) - x.size(4)
-        diffY = skip.size(3) - x.size(3)
-        diffZ = skip.size(2) - x.size(2)
-        x = nn.functional.pad(x, [diffX // 2, diffX - diffX // 2,
-                                  diffY // 2, diffY - diffY // 2,
-                                  diffZ // 2, diffZ - diffZ // 2])
-
         enc_ctx = self.att_gate(skip, x) # apply attention gating to encoder features
         x = torch.cat((enc_ctx, x), dim=1) # concatenate contextualized encoder and raw decoder features
-
         return self.conv(x) # learn a transformation that condenses them
 
 # a 3D deconvolution and skip block with cross attention
@@ -162,17 +153,8 @@ class UpBlock3D_CA(nn.Module):
 
     def forward(self, x, skip):
         x = self.up(x)
-
-        diffX = skip.size(4) - x.size(4)
-        diffY = skip.size(3) - x.size(3)
-        diffZ = skip.size(2) - x.size(2)
-        x = nn.functional.pad(x, [diffX // 2, diffX - diffX // 2,
-                                  diffY // 2, diffY - diffY // 2,
-                                  diffZ // 2, diffZ - diffZ // 2])
-
         enc_ctx = self.cross_att(skip, x) # apply cross attention to decoder features
         x = torch.cat((enc_ctx, x), dim=1) # concatenate contextualized encoder and raw decoder features
-
         return self.conv(x)
 
 # a 3D unet with multiple types of attention
@@ -196,7 +178,7 @@ class Att3DUNet(nn.Module):
         self.dec2 = UpBlock3D_AG(f * 8, f * 4, f * 8, dropout=dropout, dropout_probability=dropout_probability)
         self.dec1 = UpBlock3D_AG(f * 4, f * 2, f * 4, dropout=dropout, dropout_probability=dropout_probability)
         self.dec0 = UpBlock3D_AG(f * 2, f, f * 2, dropout=dropout, dropout_probability=dropout_probability)
-        
+
         self.final_conv = nn.Conv3d(f, out_channels, kernel_size=1)
 
     def forward(self, x):
@@ -215,13 +197,4 @@ class Att3DUNet(nn.Module):
         d1 = self.dec1(d2, e1)
         d0 = self.dec0(d1, e0)
 
-        # padding for size mismatches
-        diffX = e0.size(4) - d0.size(4)
-        diffY = e0.size(3) - d0.size(3)
-        diffZ = e0.size(2) - d0.size(2)
-        
-        d0 = nn.functional.pad(d0, [diffX // 2, diffX - diffX // 2,
-                                    diffY // 2, diffY - diffY // 2,
-                                    diffZ // 2, diffZ - diffZ // 2])
-                
         return self.final_conv(d0)
